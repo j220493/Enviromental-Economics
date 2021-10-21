@@ -1,0 +1,194 @@
+---
+title: "Precios Hedonicos"
+author: "Jorge Martelo"
+date: "1/6/2021"
+output: html_document
+---
+
+<div class=text-justify>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+Diferentes estudios que incorporan metodologias de precios hedonicos han supuesto que el valor asignado por un consumidor  de una amenidad/desamenidad sin valor de mercado es constante a través del tiempo, sin embargo, ciertos factores generan un proceso de ajuste y cambios en la valoracion y disponibilidad a pagar de los afectados. El ejercicio a continuacion muestra los datos sobre las ventas de casas mono familiares en el norte de Andover - Massachussets, para los años de 1978 y 1981. La idea es la de evaluar el impacto que tiene la construccion de un incinerador de basuras al noroccidente del pueblo. El proceso de construccion del inciderador surtio diferentes etapas:
+
+- **1974 - 1978: Pre rumor**
+- 1979 - 1980: Rumor
+- **1981 - 1984: Construccion**
+- 1985 - 1988: Online
+- 1989 - 1992: Operacion
+
+La primera mencion sobre la posibilidad de la construccion del incinerador se dio a finales de 1978, sin embargo, dado que toma cierto tiempo la propagacion de informacion entre los habitantes, este periodo se tomara como si no se hubiese conocido nada sobre la posibilidad de la construccion.
+
+Dentro de la data se considera el perioro de 1981 debido a que se da fin a todos los rumores y se procede a la construccion de la planta. En los periodos anteriores existe cierta incertidumbre por parte de la poblacion sobre la construccion del incinerador, sin embargo en 1981 se da a entender a la poblacion que el proyecto ya es una realidad.
+
+La descripcion de las variables se muestra a continuacion:
+
+- year: Fase del proceso de creacion de incinerador
+- age: Antiguedad de la vivienda
+- cbd: Distancia del hogar hasta el distrito central de negocios.
+- intst: Distancia del hogar a la entrada el estado en pies
+- rooms: Numero de habitaciones
+- area: Area construida en metros cuadrados
+- land: Area del lote en metros cuadrados
+- baths: Numero de baños
+- dist: distancia hasta el incinerador en pies
+- wind: nivel del viento 
+- rprice: Precio de venta de la vivienda idexado
+
+#### 1. cargar la base de datos
+```{r}
+library(readxl)
+PH <- read_excel("KIELMC_2.xls")
+```
+
+#### 2.Revisar la estructura interna de los datos. En caso de que una variable no tenga el tipo requerido, cambiarlo
+```{r}
+str(PH)
+PH$year <- as.factor(PH$year)
+```
+
+#### 3. Realizar un resumen estadistico de las variables a nivel general y por etapa. Que variables presentan comportamientos distintos?
+```{r}
+# Descriptivo general
+summary(PH)
+```
+
+```{r}
+# Descriptivo por etapa 1
+library(dplyr)
+PH78 <- filter(PH, year == 1978)
+summary(PH78)
+```
+
+```{r}
+# Descriptivo por etapa 2
+PH81 <- filter(PH, year == 1981)
+summary(PH81)
+```
+
+#### 4. Identificar si existen datos atipicos para el Precio. Realice una comparacion entre el precio de venta en la etapa pre-rumor y la etapa de construccion de la planta, que puede concluir?
+```{r}
+library(ggplot2)
+ggplot(PH)+
+  aes(y = rprice, x = year)+
+  geom_boxplot()
+```
+
+#### 5. Analice la relacion entre la distancia del hogar al incinerador y el precio de venta a través de un grafico de dispersion, grafique la tendencia de ese grafico para cada una de las etapas
+```{r}
+ggplot(PH)+
+  aes(x = dist, y = rprice, colour = year)+
+  geom_point()+
+  geom_smooth(method = "lm")
+```
+
+#### 6. Calcule la matriz de correlacion, que variables son redundantes, cuales retiraria?
+```{r}
+cor(PH[, -c(1, 11)])
+```
+
+Se han descrito dos metodologias para demostrar el cambio en el efecto que tiene una desamenidad sobre el valor de un bien. En el primero de ellos se estiman dos regresiones (un modelo para cada una de las etapas de analisis) y se comparan sus coeficientes. La forma funcional del modelo a estimar es la siguiente:
+
+$$ logPrice_{t} = \hat{\beta_{0t}} + \hat{\beta_{1t}}age + \hat{\beta_{2t}}Age^{2} + \hat{\beta_{3t}}Area + \hat{\beta_{4t}}bath + \hat{\beta_{5t}}rooms + \hat{\beta_{6t}}land + \hat{\beta_{7t}}logDist + \hat{\beta_{8t}}intst + \hat{\beta_{9t}}intst^{2} + e$$
+
+##### 7. De acuerdo a informacion anterior, realizar las transformaciones a las variables indicadas para cumplir con la forma funcional del modelo. Que diferencias obede una forma funcional al cuadrado con una funcon logartimica
+```{r}
+PH$rpriceLog <- log(PH$rprice)
+PH$distLog <- log(PH$dist)
+PH78$rpriceLog <- log(PH78$rprice)
+PH78$distLog <- log(PH78$dist)
+PH81$rpriceLog <- log(PH81$rprice)
+PH81$distLog <- log(PH81$dist)
+```
+
+##### 8. Estimar el modelo descrito anteriormente para las ventas realizadas en el año 1978 y otro para las ventas del año 1981. Realice una comparacion de los resultados con respecto a sus signos y la significancia de los coeficientes.
+```{r}
+# modelo 78
+colnames(PH78)
+model78 <- lm(data = PH78,
+              rpriceLog ~ age + I(age^2) + area + baths + rooms + land + distLog + intst + I(intst^2))
+summary(model78)
+```
+
+
+```{r}
+# modelo 81
+model81 <- lm(data = PH81,
+              rpriceLog ~ age + I(age^2) + area + baths + rooms + land + distLog + intst + I(intst^2))
+summary(model81)
+```
+
+#### 9. Graficar el efecto de la distancia en pies al incinerador sobre el precio de las casas (asuma el promedio para el resto de variables)
+
+```{r}
+predicciones <- data.frame(dist = seq(500, 40000),
+                           age = mean(PH$age),
+                           area = mean(PH$area),
+                           baths = mean(PH$baths),
+                           rooms = mean(PH$rooms),
+                           land = mean(PH$land),
+                           intst = mean(PH$intst)) %>% mutate(distLog = log(dist))
+
+prediccion78 <- predict(model78, newdata = predicciones)
+prediccion81 <- predict(model81, newdata = predicciones)
+
+predicciones$Pred78 <- exp(prediccion78)
+predicciones$Pred81 <- exp(prediccion81)
+
+ggplot(predicciones)+
+  aes(x = dist)+
+  geom_line(aes(y = Pred78), colour = "steelblue")+
+  geom_line(aes(y = Pred81), colour = "darkred")
+```
+
+#### 10. Calcule el precio implicito en el cambio para las dos etapas evaluadas a partir de los modelos
+```{r}
+# impacto 78
+beta78 <- 0.07611
+precio78 <- mean(PH78$rprice)
+dist78 <- mean(PH78$dist)
+PrecioPie78 <- (precio78/dist78)*beta78
+```
+
+```{r}
+# impacto 81
+beta81 <- 0.1720
+precio81 <- mean(PH81$rprice)
+dist81 <- mean(PH81$dist)
+PrecioPie81 <- (precio81/dist81)*beta81
+```
+
+```{r}
+# Impacto
+0.27 - 0.79
+```
+
+El segundo metodo consiste en estimar un solo modelo incorporando la variable de etapa dentro del modelo. Asi mismo, se debe incorporar un termino denominado **interaccion** el cual modela el efecto conjunto de dos variables. Para este caso la interaccion será entre las variables distancia al incinerador y año.
+
+#### 11. Graficar el efecto de la interaccion entre etapa y distancia al incinerador vs precio
+```{r}
+PH$nearIn <- as.factor(ifelse(PH$distLog <= 9.65, 1, 0))
+int <- PH %>%
+  group_by(nearIn, year) %>%
+  summarize(rprice = mean(rprice))
+ggplot(int)+
+  aes(x = nearIn, y = rprice, colour = year)+
+  geom_line(aes(group = year))
+```
+#### 12. Estimar el modelo con la interaccion
+```{r}
+modelC <- lm(data = PH,
+              rpriceLog ~ age + I(age^2) + area + baths + rooms + land + distLog + intst + I(intst^2) + year*distLog)
+summary(modelC)
+```
+
+#### 13. Calcule el precio implicito en el cambio para las dos etapas evaluadas a partir del segundo modelo
+```{r}
+beta <- 0.03
+precio <- mean(PH$rprice)
+distancia <- mean(PH$dist)
+(precio/distancia)*beta
+```
+

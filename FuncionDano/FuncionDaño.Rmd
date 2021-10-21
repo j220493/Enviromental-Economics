@@ -1,0 +1,131 @@
+---
+title: "FUNCION DE DAÑO"
+author: "Jorge Martelo"
+date: "25/5/2021"
+output: html_document
+---
+
+<div class=text-justify>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+### Introduccion
+
+Este ejercicio aplica la metodología de la función de daño a través del método de costos evitados, para estimar los costos económicos incurridos por una empresa de agua potable producto de la sedimentación ocasionada por una deforestación del 10% del Bosque de la cuenca que surte de agua a esta planta. El fenomeno de la desforestación trae consigo efectos sobre el aumento de la carga de sedimentos y la reduccion del caudal medio, los cuales generan sobrecostos a la empresa.
+
+### Variables utilizadas
+**Variables de daño**: Miden como los cambios en la cobertura boscosa afectan el nivel de sedimentos y el caudal medio
+
+ - Producción de Sedimentos en Ton/mes. 
+ - Caudal medio Mensual en m3 /seg
+ - Porcentaje de Area Deforestada (10% por defecto)
+ 
+**Variables fisicas**: Representan la relacion entre cambios en la cobertura boscosa y la calidad del agua
+
+ - Caudal Mensual Medio en m3/seg
+ - Cantidad de Sedimentos mg/lt
+ 
+**Variables de reaccion:** Miden los cambios en la planta ante un cambio en la calidad ambiental.
+
+ - Cantidad de Sulfato de Aluminio y Cal en Kg/mes
+ - Turbiedad medida en unidades nefelométricas de Turbiedad
+ - Cantidad de Agua Tratada en m3/mes
+ 
+
+### Caso de estudio: Analisis de sedimentos
+
+Como se mencionó anteriormente, la desforestacion genera diferentes consecuciencias sobre la calidad del agua, sin embargo, para efectos del ejercicio se analizará la sedimentacion y turbiedad. 
+
+Diferentes investigaciones han estimado que el desforestar 1% genera un 100% de incremento en los sedimientos. Por otro lado, en el caso de turbiedad se debe estimar cual ha sido la relacion entre esta variable y sedimentacion de la siguiente manera:
+
+$$ \hat{T} = \hat{\rho} S^{\hat{\beta_1}} $$
+
+Donde $\hat{T}$ es el nivel de turbiedad de agua, $S$ es el nivel de sedimentacion, $\hat{\rho}$ es un parametro que indica el nivel de turbiedad del agua independientemente del nivel de sedimentacion y $\hat{\beta_1}$ es el impacto de la sedimentacion sobre la turbiedad. Dado que el metodo de minimos cuadrados ordinarios supone linealidad, debemos reescribir la funcion de la siguiente forma:
+
+$$ ln(\hat{T}) = ln(\hat{\rho} S^{\hat{\beta_1}}) $$
+$$ln(\hat{T}) = ln(\hat{\rho}) + ln(S^{\hat{\beta_1}}) $$
+
+$$ln(\hat{T}) = ln(\hat{\rho}) + \hat{\beta_1}ln(S) $$
+
+Una vez determinada la relacion entre la sedimentacion y la turbiedad, se debe estimar el efecto negativo que este fenomeno trae para la empresa: un incremento en la turbiedad impacta directamente sobre la mano de obra y en la cantidad de insumos para tratar el agua. Para efectos del ejercicio solo se estimará esta relacion para el gasto en quimicos
+
+$$\hat{Q} = \hat{\lambda} T^{\hat{\alpha_1}} $$
+
+Donde $\hat{Q}$ es el gasto promedio en quimicos para tratar el agua de acuerdo a un nivel de turbiedad $S$, $\hat{\lambda}$ es un parametro que indica el gasto en quimicos con independencia del nivel de Turbiedad y $\hat{\alpha_1}$ representa la relacion entre el nivel de Turbiedad y el gasto en quimicos. Como el caso anterior, se puede reescribir para cumplir el supuesto de normalidad de la siguiente forma:
+
+$$ ln(\hat{Q}) = ln(\hat{\lambda}) + \hat{\alpha_1}ln(T)$$
+
+### Desarrollo del problema
+De acuerdo a la informacion presentada anteriormente, desarrolle los siguientes puntos:
+
+#### 1. Cargue la base de datos a R con el nombre de FD
+```{r}
+library(readxl)
+FD <- read_excel("C:/Users/marteloa.5/Google Drive/Teleperformance/Sesiones de R/Funcion de daño/DAMAGE.xlsx")
+```
+
+**Decodificacion de las variables**:
+
+- TURB: Tubiedad del agua
+- SED: Sedimentacion
+- CQUIM: Gasto promedio en quimicos
+
+#### 2. Seleccione las variables relevantes para el analisis y realice un resumen descriptivo. Comente los resultados
+```{r}
+library(dplyr)
+FD2 <- FD %>% select(TURB, SED, CQUIM)
+summary(FD2)
+```
+
+#### 3. Realice un grafico de dispersion entre la sedimentacion y la turbiedad del agua, ¿Que puede concluir?.Existe algun valor anormal en el nivel de sedimentacion de agua?
+```{r}
+library(ggplot2)
+ggplot(FD2)+
+  aes(x = TURB, y = SED)+
+  geom_point()
+```
+
+#### 4. Transforme las variables de acuerdo a la especificacion del modelo turbiedad vs sedimentacion
+
+```{r}
+FD2$logturb <- log(FD2$TURB)
+FD2$logsedi <- log(FD2$SED)
+```
+
+#### 5. Estime el modelo que relaciona la turbiedad en funcion de la sedimentacion. Interprete el signo y la magnitud del coeficiente
+```{r}
+modelo1 <- lm(data = FD2,
+              logturb ~ logsedi)
+summary(modelo1)
+```
+
+#### 6. Transforme las variables de acuerdo a la especificacion del modelo Gasto en quimicos vs turbiedad
+```{r}
+FD2$logquim <- log(FD2$CQUIM)
+```
+
+#### 7. Estime el modelo que relaciona el gasto en fucion de la turbiedad. Interprete el signo y la magnitud del coeficiente. 
+```{r}
+modelo2 <- lm(data = FD2,
+              logquim ~ logturb)
+summary(modelo2)
+```
+
+#### 8 Escriba ambos modelos matematicos de acuerdo a los parametros estimados
+
+El primero modelo seria: $\hat{T} = -4.94 S^{0.5486}$, mientras que el segundo modelo seria $\hat{Q} = -0.30060 T^{0.68358}$
+
+#### 9. De acuerdo a los resultados obtenidos responda las siguientes preguntas:
+
+**Estimacion efecto deforestacion**
+
+- Si un 1% de desforestacion causa un 100% de incremento en sedimentos, ¿cuanto será el incremento para un 10% de desforestacion?
+- ¿Cuanto será el incremento en la turbiedad del agua de acuerdo al incremento en la sedimentacion previamente calculado?
+- ¿Cuanto será el incremento en el gasto promedio en quimicos de acuerdo al incremento en la turbiedad previamente calculado?
+
+**Monetizacion**
+
+- Si el costo promedio de tratamientos es $23.5 por M3, en cuanto se incrementará el valor debido al incremento en quimicos?
+- Si el promedio de 6 meses del agua tratada fue de 2.665.476 M3, ¿cuanto será el incremento en los costos de tratamiento? Interprete este valor.

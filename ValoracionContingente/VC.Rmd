@@ -1,0 +1,238 @@
+---
+title: "Valoracion contingente"
+author: "Jorge Martelo"
+date: "27/5/2021"
+output: html_document
+---
+
+<div class=text-justify>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+Para el presente caso se quiere determinar el beneficio económico que 119 turistas le asignan al servicio ambiental que ofrece la playa de Charcas, ubicada en el Centro Poblado de Titilaca, distrito de Platería, provincia de Puno en el periodo 2018. La recoleccion de informacion se realizo preguntandole al encuestado sobre su disposición a pagar (DAP) por la mejora en la calidad del bien ecosistémico. Adicionalmente, con el fin de obtener mejores resultados, se utilizo el formato doble límite que a comparación del formato referéndum, se incorpora una segunda pregunta en función a la respuesta sobre DAP inicial del encuestado.
+
+#### 1 Cargar la base de datos con el nombre VC
+```{r}
+library(readxl)
+VC <- read_excel("C:/Users/marteloa.5/Google Drive/Teleperformance/Sesiones de R/Valoracion contingente/Basede datos_VC_Playa charcas.xlsx")
+```
+
+Los nombres de las variablles son los siguientes:
+
+- **PROBSI**: Respuesta sobre si tiene disponibilidad a pagar
+- **PH**: Valor hipotetico a pagar en soles
+- **PMAX**: Valor hipotetico maximo a pagar en soles
+- **PMIN**: Valor hipotetico minimo a pagar en soles
+- **ING**: Ingreso promedio familiar (1:menos de 930 soles, 2: entre 931 y 2100 y 3: mas de 2101 soles )
+- **EDAD**: Edad del entrevistado
+- **NE**: Nivel educativo en años de estudio
+- **TH**: Tamaño del hogar
+- **GEN**: Genero (1: hombre, 0: Mujer)
+- **SL**: Situacion laboral (1: Desempleado, 2: Jubilado, 3: Estudiante, 4:Trabajador)
+- **NV**: Numero de visitas a la playa en los ultimos 12 meses
+- **GEN**: Genero (1: hombre, 0: Mujer)
+- **PA**: Percepcion ambiental de la playa (1:Contaminacion de lago, 2:Malos olores, 3:Acumulacion de basura, 4:Mal aspecto visual)
+- **SAT**:Nivel de satasifaccion por la visita (1:Totalmente satisfecho, 5: Totalmente insatisfecho)
+
+```{r}
+#VC$PROBSI <- as.factor(VC$PROBSI)
+#VC$ING <- factor(VC$ING, levels = c(1, 2, 3), ordered = TRUE)
+#VC$GEN <- as.factor(VC$GEN)
+#VC$SL <- as.factor(VC$SL)
+#VC$SAT <- factor(VC$SAT, levels = c(5, 4, 3, 2, 1), ordered = TRUE)
+```
+
+
+#### 2. Realizar un analisis descriptivo de las variables. Identifique la variable respuesta a modelar, cual es tipo de variable?
+```{r}
+summary(VC)
+```
+
+#### 3. Graficar el efecto de los aumentos de precios hipoteticos sobre la disponibilidad a . Que conclusion puede llegar?
+```{r}
+library(ggplot2)
+ggplot(VC)+
+  aes(x = factor(PH), fill = factor(PROBSI))+
+  geom_bar()
+```
+
+#### 4. Realice un gráfico de cajas y bigotes para las variables **numero de visitas a la playa** y **edad**. Que puede interpretar?
+
+```{r}
+ggplot(VC)+
+  aes(y = EDAD)+
+  geom_boxplot()+
+  ggtitle("Boxplot de edad")
+```
+
+| Variable respuesta | Método |
+|-|-|
+| Continua | Regresion lineal |
+| Discreta | Poisson - Binomial negativo |
+| Dicotomica | Logit - Probit |
+
+De acuerdo a la naturaleza de la variable respuesta, para el caso del calculo de la disponibilidad a pagar debemos utilizar la familia de modelos logit o probit. Ambos modelos funcionan para estimar la probabilidad de ocurrencia de un evento, en este caso si una persona tiene o no disponibilidad a pagar (DAP) sobre una mejora de un bien ambiental.
+
+**Estimacion modelo tipo referendum (SBCV)**
+
+*Modelo Probit*
+Mas allá de la estimacion de las probabilidades, lo interesante del modelo Probit es la estimacion de la DAP media de los individuos encuestados (muestra), dicha estimacion parte de la siguiente expresion:
+
+$$ ln(\frac{p}{1-p}) = \alpha + \hat{\beta_1}BID + e$$
+$$ 0 = \alpha + \hat{\beta_1}BID + e$$
+
+$$ BID = DAP =  \frac{-\alpha}{\hat{\beta_1}}$$
+
+En donde $\alpha$ es el intercepto del modelo y $\hat{\beta}$ representa el coeficiente estimado para el valor hipotetico a pagar (BID).
+
+#### 5. Estime el modelo probit con todas las variables de la base de datos. Interprete el coeficiente de la variable precio hipotetico. Que variables no son significantes?
+```{r}
+probit <- glm(data = VC[,-c(3:8)],
+              PROBSI ~.,
+              family = binomial("probit"))
+summary(probit)
+```
+
+#### 6. Estime el mejor modelo probit unicamente con las variables significativas. Compare el nuevo modelo con el anteriormente estimado, cual es mejor? por que?.
+```{r}
+#Nuevo modelo
+probit <- glm(data = VC[,-c(3:8)],
+              PROBSI ~ PH + ING + NE + TH + SL,
+              family = binomial("probit"))
+summary(probit)
+```
+
+#### 7. Teniendo en cuenta el modelo obtenido, calcule la DAP
+```{r}
+# Calculo de DAP
+MediaIng <- mean(VC$ING)
+MediaNE <- mean(VC$NE)
+MediaTH <- mean(VC$TH)
+MediaSL <- mean(VC$SL)
+
+-(5.98762+(2.86951*MediaIng)+(0.27164*MediaNE)+(0.48087*MediaTH)+(0.36850*MediaSL))/-1.33060
+```
+
+*Estimacion de la DAP a partir del modelo LOGIT*
+Tal como se mencionó anteriormente el modelo logit presenta un supuesto fuerte en el que sus errores se distribuyen normalmente. Esto en la practica no se cumple siempre, por lo tanto existe la alternativa del modelo logistico. Dado que en este tipo de modelo no se supone normalidad, la media y mediana no son iguales, por lo tanto se debe calcular una DAP mediana y una DAP promedio por separado. La primera sigue las mismas caracteristicas del modelo PROBIT, sin embargo la segunda se calcula a partir de la siguiente expresion:
+
+$$ DAP = \frac{-1}{\hat{\beta}}ln(1 + e^{\alpha})$$
+En donde $\beta$ es el coeficiente estimado para el precio y $\alpha$ el intercepto.
+
+#### 8. Estime el modelo LOGIT completo y comparelo con el primer modelo PROBIT. Existen diferencias? cual es mejor y por que ?
+```{r}
+probit <- glm(data = VC[,-c(3:8)],
+              PROBSI ~ .,
+              family = binomial("logit"))
+summary(probit)
+```
+
+#### 9. Estime el mejor modelo logit unicamente con las variables significativas. Compare el nuevo modelo con el mejor PROBIT y con el LOGIT completo, cual es mejor? por que?
+```{r}
+logit <- glm(data = VC[,-c(3:8)],
+              PROBSI ~ PH + ING + NE + TH + SL,
+              family = binomial("logit"))
+summary(logit)
+```
+
+#### 10. De acuerdo a los coeficientes del modelo LOGIT, calcule la DAP mediana y la DAP promedio
+```{r}
+MediaIng <- mean(VC$ING)
+MediaNE <- mean(VC$NE)
+MediaTH <- mean(VC$TH)
+MediaSL <- mean(VC$SL)
+-(-11.1144 + (5.1311*MediaIng) + (0.5071*MediaNE) + (0.8648*MediaTH) + (0.6510*MediaSL))/-2.3384
+(-1/-2.3384)*log(1+exp(-11.1144 + (5.1311*MediaIng) + (0.5071*MediaNE) + (0.8648*MediaTH) + (0.6510*MediaSL)))
+```
+
+Debido a que R es una plataforma open source en donde cualquier investigador puede compartir sus algoritmos con terceros, recientemente se creo un paquete especifico para la estimacion de DAP a través de metodologias de valoracion contingente:
+
+#### 11. Instale el paquete DCChhoice
+```{r}
+#install.packages("icens",
+#                 repos = c("http://www.bioconductor.org/packages/release/bioc",
+#                           "https://cran.rstudio.com/"),
+#                 dep = TRUE)
+
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#  install.packages("BiocManager")
+```
+
+#### 12. Estime un modelo de regresion con respuesta tipo referendum con la funcion de enlace logit utilizando las variables significativas. Compare los coeficientes, signos, AIC y DAP del nuevo modelo con los valores del modelo estimado previamente a través de la funcion GLM. Que diferencias existen? 
+```{r}
+library(DCchoice)
+ModelN <- sbchoice(data = VC[,-c(3:8)],
+                   PROBSI ~ ING + NE + TH + SL|PH,
+                   dist = "logistic")
+summary(ModelN)
+```
+
+#### 13. Estime los intervalos de confianza de la disponibilidad a pagar utilizando el metodo boostrap. Adicionalmente grafique la disponibilidad a pagar en funcion del modelo estimado, que puede inferir?
+```{r}
+# Intervalo de confianza
+bootCI(ModelN) 
+```
+
+```{r}
+# Grafico WTP
+plot(ModelN)
+```
+
+**Estimacion modelo tipo doble limite (DBCV)**
+La metodologia doble limite aplica una segunda pregunta al encuesta en funcion de su primera respuesta, es decir, en caso de que la persona haya respondido positivamente a la disponibilidad a pagar por X cantidad de dinero, el encuestador procederá a indagar por segunda vez su disponibilidad a pagar realizando un incremento en dicha cantidad.
+
+Por otro lado, en caso de que la persona haya repsondido negativamente a la primera pregunta, el encuestador volverá a indagar sobre su DAP por un monto menor al de la primera pregunta. De acuerdo a esto, se pueden codificar las respuestas de la siguiente manera:
+
+- YY: DAP afirmativa en primera y segunda pregunta
+- YN: DAP afirmativa en la primera pregunta y negativa en  la segunda
+- NY: DAP negativa en la primera pregunda y afirmativa en la segunda
+- NN: DAP negativa en primera y segunda pregunta
+
+#### 14. Crear la segunda respuesta de disponibilidad a pagar como variable
+```{r}
+VC$PROBSI2 <- ifelse(VC$DYY == 1 | VC$DNY == 1, 1, 0)
+VC$PH2 <- ifelse(VC$PROBSI == 1, VC$PMAX, VC$PMIN)
+```
+
+
+#### 15. Estimar el modelo logistico de doble limite con todas las variables. Existen cambios frente al primer modelo logistico estimado?
+```{r}
+ModelDB <- dbchoice(data = VC[,-c(3:8)],
+                   PROBSI + PROBSI2 ~ ING + EDAD + NE + TH + GEN + SL + NV + PA + SAT|PH + PH2,
+                   dist = "logistic")
+summary(ModelDB)
+```
+
+#### 16. Estimar el mejor modelo excluyendo las variables no significativas. Interprete la DAP, presenta cambios significativos con respecto al modelo anterior?
+```{r}
+ModelDB <- dbchoice(data = VC[,-c(3:8)],
+                   PROBSI + PROBSI2 ~ ING + NE + SL |PH + PH2,
+                   dist = "logistic")
+summary(ModelDB)
+```
+
+#### 17. Calcule los intervalos de confianza para la DAP con el metodo boostrap, ¿que diferencias presenta con respecto a los intevalos del modelo con respuest referendo?. FInalmente grafique la probabilidad de la DAP en funcion del precio hipotetico (BID)
+
+```{r}
+# Intervalos de confianza
+bootCI(ModelDB) 
+```
+
+
+```{r}
+# Grafico
+plot(ModelDB)
+```
+
+#### 18. Predecir la probabilidad de que una persona tenga disponibilidad a pagar un precio hipotetico de 3 Soles dadas las siguientes caracteristicas:
+
+- Ingreso: 2
+- Nivel educativo 11
+- Situacion laboral 3
+
+```{r}
+predict(ModelDB, newdata = data.frame(ING = 2, NE = 11, SL = 3, PH = 3), type = "probability")
+```
+

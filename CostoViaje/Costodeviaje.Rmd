@@ -1,0 +1,180 @@
+---
+title: "Estimación del Valor Económico de la Reducción de la Contaminación en una playa en Massachussets, Estados Unidos"
+author: "Jorge Martelo"
+date: "20/5/2021"
+output: html_document
+---
+
+<div class=text-justify>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+La base de datos de este ejercicio fue tomada de un estudio que pretende mediante la aplicación del método del costo de viaje estimar los beneficios en recreación debido a reducciones de PCB´s (Policloruros Bencenos) del agua en un puerto de Massachusetts en Estados Unidos. El estudio fue realizado mediante entrevistas telefónicas. Se seleccionó una muestra aleatoria de familias que representativa de la población en estudio. Específicamente, el análisis conllevó a la estimación del efecto que tiene la reducción de dicho contaminante sobre la demanda por viajes a la playa. El propósito del estudio es valorar el acceso a la playa.
+
+El conjunto de datos incluye las siguientes variables:
+
+* x1: Variable dependiente que representa el número de viajes realizados a la playa por temporada.
+* x2: Variable independiente que representa la distancia a la playa en millas.
+* x3: Variable independiente que representa el tiempo de viaje a la playa en horas.
+* x4: Variable independiente que representa el precio completo a la playa (distancia ida y vuelta en millas multiplicado por el valor por milla (US 0.2 /milla) más el tiempo de ida y vuelta multiplicado por el valor del tiempo).
+* x5: Variable independiente que representa el número de viajes realizados a lugares alternativos de menor costo.
+* x6: Variable independiente que representa la distancia en millas a lugares alternativos de menor costo.
+* x7: Variable independiente que representa el tiempo a lugares alternativos de menor costo.
+* x8: Variable independiente que representa el precio completo a lugares alternativos (sustitutos) de menor costo.
+* x9: Variable independiente que representa el valor asignado al tiempo (US/ minuto).
+* x10: Variable independiente que representa la edad en años del jefe de familia.
+* x11: Variable independiente que representa el número de adultos por familia.
+* x12: Variable independiente que representa el número de niños por familia.
+* x13: Variable binaria que toma el valor de 1 si la familia tiene permisos de temporada a la playa.
+* x14: Variable binaria que toma el valor de 1 si la familia tiene pases de temporada para cualquier otra playa.
+
+Se cuenta con 527 observaciones disponibles, las cuales se encuentran en el archivo FORTFINX.ASC. Resuelva:
+
+### a) Carga de datos a R y preprocesamiento
+
+1. Cargue los datos a R y utilice la funcion head para explorar las primeras filas
+```{r}
+library(readxl)
+CV <- read_excel("C:/Users/marteloa.5/Google Drive/Teleperformance/Sesiones de R/Costo de viaje/COSTOS_VIAJE_Fortfinx (1).xls")
+head(CV)
+```
+
+2. Analizar la estructura interna de los datos, en caso de que una variable no tenga el formato deseado, asignarlo.
+```{r}
+str(CV)
+CV$X1 <- as.integer(CV$X1)
+CV$X13 <- as.factor(CV$X13)
+CV$X14 <- as.factor(CV$X14)
+```
+
+#### b) Analisis descriptivo
+
+3. Realice un resumen descriptivo de las variables. Comente los resultados sobre las variables **X10** y **X11**. Adicionalmente mencione si la data presenta truncamiento o censura.
+```{r}
+summary(CV)
+```
+
+4. Realice un gráfico de barras para la variable X1 y un grafico de cajas y bigotes para la variable X4. Que informacion puede inferir de ellos?
+```{r}
+library(ggplot2)
+library(gridExtra)
+grid.arrange(
+  ggplot(CV)+
+    aes(x = X1)+
+    geom_bar()+
+    ggtitle("Histograma de uso"),
+  
+  ggplot(CV)+
+    aes(y = X4)+
+    geom_boxplot()+
+    ggtitle("Boxplot para precio"),
+  
+  ncol = 2)
+```
+
+### c) Seleccion de variables y especificacion del modelo
+
+5. Evalue si existen variables redundantes en las variables endogenas y utilice un gráfico de dispersion  para un par de variables altamente correlacionadas
+```{r}
+# Matriz de correlacion
+cor(CV[, -c(1, 13, 14)])
+```
+
+```{r}
+# Gráfico de dispersion
+ggplot(CV)+
+  aes(x = X8, y = X6)+
+  geom_point()+
+  ggtitle("grafico de disperson X8 y X6")
+```
+
+```{r}
+# Data sin variables redundates
+CV2 <- CV[, -c(3, 6, 7)]
+head(CV2)
+```
+
+Una vez depurada la data se debe especificar el tipo de modelo a estimar. El tipo de modelo depende principalemnte de las caracteristicas del problema que se esta analizando, como el tipo de variable dependiente. La tabla a continuacion muestra algunos de los modelos mas utilizados dentro del ambito econometrico:
+
+| Modelo | Método | Tipo de variable respuesta  |
+|-|-|-|
+| Regresión lineal | Mínimos cuadrados ordinarios | Valores continuos es continua |
+| LOGIT | Maximo verosimilitud | Valores de 0 y 1 |
+| Poisson | Maximo verosimilitud | Valores enteros |
+| Binomial Negativo | Maximo verosimilitud | Valores enteros |
+
+
+#### d) Estimacion y validacion de modelo
+6. Estime una regresion Poisson. Interprete los coeficientes, la significancia de las variables y evalue la prosibilidad de sobredispersión. En caso de que existan variables no significativas, retiralas, estimar e interpretar el mejor modelo.
+
+```{r}
+# Modelo Poisson (interprete)
+PoissonM <- glm(data = CV2, 
+                X1 ~ .,
+                family = poisson)
+summary(PoissonM)
+```
+
+```{r}
+# Modelo Poisson version 2
+PoissonM <- glm(data = CV2,
+                X1 ~ X4 + X5 + X9 + X11 + X12 + X13 + X14,
+                family = poisson)
+summary(PoissonM)
+```
+
+7. Evalue si el modelo presenta sobredispersion
+```{r}
+2550.8/519
+```
+
+8. Estimar modelo binomial negativo. Que diferencias existen el modelo binomial negativo estimado y el seguno modelo poisson?. 
+```{r}
+library(MASS)
+BinomialN <- glm.nb(data = CV2,
+                X1 ~ X4 + X5 + X9 + X11 + X12 + X13 + X14)
+summary(BinomialN)
+```
+
+9. Compare los dos modelos Binomial negativo y poisson a través de la prueba de log-likelihood y concluya bajo las siguientes hipotesis:
+
+- H0 = no existe diferencia entre los modelos estimados
+- H1 = El modelo binomial N es mejor
+
+```{r}
+PoissonLog <- logLik(PoissonM)
+BinomialNLog <- logLik(BinomialN)
+pchisq(2 * (BinomialNLog - PoissonLog ), df = 1, lower.tail = FALSE)
+```
+
+9. Estime el mejor modelo Binomial negativo excluyendo las variables no significativas. Interprete los coeficientes de las variables significativas
+```{r}
+# Mejor modelo
+BinomialN <- glm.nb(data = CV2,
+                X1 ~ X4 + X5 + X14)
+summary(BinomialN)
+```
+
+```{r}
+# Coeficientes
+exp(coef(BinomialN))
+```
+
+#### e) Calculo de el excedente del consumidor
+10. Calcule el excedente del consumidor por viaje teniendo en cuenta la siguiente expresion $\frac{1}{|B_4|}$
+```{r}
+1/abs(-0.31122)
+```
+
+11. Calcule el excedente del consumidor para toda la muestra. Interprete los resultados
+```{r}
+# Realice las predicciones e interprete
+Demanda <- predict(BinomialN, newdata = CV, type = "response")
+Demanda <- round(Demanda, 0)/0.31122
+sum(Demanda)
+```
+
+
+
