@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 ### Introduccion
 
-Este ejercicio aplica la metodología de la función de daño a través del método de costos evitados, para estimar los costos económicos incurridos por una empresa de agua potable producto de la sedimentación ocasionada por una deforestación del 10% del Bosque de la cuenca que surte de agua a esta planta. El fenomeno de la desforestación trae consigo efectos sobre el aumento de la carga de sedimentos y la reduccion del caudal medio, los cuales generan sobrecostos a la empresa.
+Este ejercicio aplica la metodología de la función de daño a través del método de costos evitados, para estimar los costos económicos incurridos por una empresa de agua potable, producto de la sedimentación ocasionada por una deforestación del 10% del Bosque de la cuenca que surte de agua a esta planta. El fenomeno de la desforestación trae consigo efectos sobre el aumento de la carga de sedimentos y la reduccion del caudal medio, los cuales generan sobrecostos a la empresa.
 
 ### Variables utilizadas
 **Variables de daño**: Miden como los cambios en la cobertura boscosa afectan el nivel de sedimentos y el caudal medio
